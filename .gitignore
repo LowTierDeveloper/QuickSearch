@@ -1,0 +1,25 @@
+
+# Visual Studio files
+.vs/
+*.user
+*.suo
+
+# Build outputs
+bin/
+obj/
+
+# Temporary files
+*.tmp
+*.log
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+
+# Installer output
+installer-output/
+
+# Operating system files
+.DS_Store
+Thumbs.db
