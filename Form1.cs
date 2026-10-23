@@ -1,4 +1,3 @@
-
 #nullable enable
 
 using System;
@@ -27,11 +26,12 @@ public partial class Form1 : Form
     private const int ToggleHotkey = 1;
     private const int ExitHotkey = 2;
     private const int WmHotkey = 0x0312;
+    private const int CompactHeight = 120;
 
     private const uint ModAlt = 0x0001;
     private const uint ModControl = 0x0002;
-    private const uint VkSpace = 0x20;
-    private const uint VkQ = 0x51;
+    private const uint ModShift = 0x0004;
+    private const uint ModWin = 0x0008;
 
     private readonly TextBox searchBox = new();
     private readonly WebView2 webView = new();
@@ -40,6 +40,7 @@ public partial class Form1 : Form
     private readonly Button refreshButton = new();
     private readonly Button searchButton = new();
     private readonly Button chromeButton = new();
+    private readonly Button settingsButton = new();
     private readonly Label statusLabel = new();
     private readonly Label taglineLabel;
 
@@ -50,6 +51,8 @@ public partial class Form1 : Form
     private bool toggleRegistered;
     private bool exitRegistered;
     private bool allowExit;
+    private bool settingsDialogOpen;
+    private SettingsForm? settingsForm;
 
     public Form1()
     {
@@ -60,11 +63,12 @@ public partial class Form1 : Form
 
         Text = "QuickSearch";
         StartPosition = FormStartPosition.CenterScreen;
-        ClientSize = new Size(900, 114);
-        MinimumSize = new Size(560, 154);
+        ClientSize = new Size(900, CompactHeight);
+        MinimumSize = new Size(560, CompactHeight + 40);
         BackColor = Color.White;
         Font = new Font("Segoe UI", 10);
         KeyPreview = true;
+        TopMost = QuickSearchSettings.AlwaysOnTop;
 
         if (startInBackground)
         {
@@ -81,7 +85,10 @@ public partial class Form1 : Form
             refreshButton,
             searchButton,
             chromeButton,
+            settingsButton,
             statusLabel);
+
+        searchButton.Click += async (_, _) => await SearchAsync();
 
         searchBox.KeyDown += async (_, e) =>
         {
@@ -91,8 +98,6 @@ public partial class Form1 : Form
                 await SearchAsync();
             }
         };
-
-        searchButton.Click += async (_, _) => await SearchAsync();
 
         backButton.Click += (_, _) =>
         {
@@ -113,28 +118,11 @@ public partial class Form1 : Form
         };
 
         chromeButton.Click += (_, _) => OpenInChrome();
-
-        searchBox.TextChanged += (_, _) => UpdateNavigationButtons();
+        settingsButton.Click += (_, _) => OpenSettings();
 
         Shown += async (_, _) =>
         {
-            toggleRegistered = RegisterHotKey(
-                Handle, ToggleHotkey,
-                ModControl | ModAlt, VkSpace);
-
-            exitRegistered = RegisterHotKey(
-                Handle, ExitHotkey,
-                ModControl | ModAlt, VkQ);
-
-            if (!toggleRegistered || !exitRegistered)
-            {
-                MessageBox.Show(
-                    "One or more QuickSearch hotkeys could not be registered. " +
-                    "Another application may already be using them.",
-                    "QuickSearch",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning);
-            }
+            RegisterGlobalHotkeys();
 
             if (startInBackground)
                 Hide();
@@ -149,30 +137,172 @@ public partial class Form1 : Form
 
         KeyDown += (_, e) =>
         {
-            if (e.KeyCode == Keys.Escape)
-            {
-                if (resultsVisible)
-                    HideResults();
-                else
-                    Hide();
+            if (e.KeyCode != Keys.Escape)
+                return;
 
-                e.Handled = true;
-                e.SuppressKeyPress = true;
-            }
+            if (resultsVisible)
+                HideResults();
+            else
+                Hide();
+
+            e.Handled = true;
+            e.SuppressKeyPress = true;
         };
+
+        ApplyAppearance();
     }
 
-    private void HandleFormClosing(
-        object? sender, FormClosingEventArgs e)
+    private void OpenSettings()
     {
-        if (!allowExit && e.CloseReason == CloseReason.UserClosing)
+        if (settingsForm != null && !settingsForm.IsDisposed)
         {
-            e.Cancel = true;
-            Hide();
+            settingsForm.Activate();
             return;
         }
 
+        bool keepSettingsOnTop = TopMost;
+        settingsDialogOpen = true;
+        TopMost = false;
+
+        var dialog = new SettingsForm
+        {
+            StartPosition = FormStartPosition.CenterParent,
+            TopMost = keepSettingsOnTop
+        };
+        settingsForm = dialog;
+
+        dialog.SettingsChanged += (_, _) =>
+        {
+            ApplyAppearance();
+            RegisterGlobalHotkeys();
+        };
+
+        dialog.FormClosed += (_, _) => settingsForm = null;
+
+        try
+        {
+            dialog.ShowDialog(this);
+        }
+        finally
+        {
+            settingsDialogOpen = false;
+            TopMost = QuickSearchSettings.AlwaysOnTop;
+            if (ReferenceEquals(settingsForm, dialog))
+                settingsForm = null;
+        }
+    }
+
+    private void ApplyAppearance()
+    {
+        TopMost =
+            !settingsDialogOpen && QuickSearchSettings.AlwaysOnTop;
+
+        QuickSearchUI.ApplyTheme(
+            this,
+            searchBox,
+            backButton,
+            forwardButton,
+            refreshButton,
+            searchButton,
+            chromeButton,
+            settingsButton,
+            statusLabel);
+
+        if (!resultsVisible)
+        {
+            ClientSize = new Size(
+                QuickSearchSettings.WindowWidth,
+                CompactHeight);
+        }
+    }
+
+    private static uint GetModifiers(string text)
+    {
+        uint result = 0;
+
+        foreach (string part in text.Split(
+            ',',
+            StringSplitOptions.TrimEntries |
+            StringSplitOptions.RemoveEmptyEntries))
+        {
+            switch (part)
+            {
+                case "Control":
+                    result |= ModControl;
+                    break;
+                case "Alt":
+                    result |= ModAlt;
+                    break;
+                case "Shift":
+                    result |= ModShift;
+                    break;
+                case "Win":
+                    result |= ModWin;
+                    break;
+            }
+        }
+
+        return result;
+    }
+
+    private static Keys GetKey(string text)
+    {
+        if (text == "Space")
+            return Keys.Space;
+
+        return Enum.TryParse(text, true, out Keys key)
+            ? key
+            : Keys.None;
+    }
+
+    private void RegisterGlobalHotkeys()
+    {
         UnregisterHotkeys();
+
+        uint toggleModifiers =
+            GetModifiers(QuickSearchSettings.ToggleModifiers);
+        Keys toggleKey = GetKey(QuickSearchSettings.ToggleKey);
+
+        uint exitModifiers =
+            GetModifiers(QuickSearchSettings.ExitModifiers);
+        Keys exitKey = GetKey(QuickSearchSettings.ExitKey);
+
+        toggleRegistered =
+            toggleKey != Keys.None &&
+            RegisterHotKey(
+                Handle,
+                ToggleHotkey,
+                toggleModifiers,
+                (uint)toggleKey);
+
+        exitRegistered =
+            exitKey != Keys.None &&
+            RegisterHotKey(
+                Handle,
+                ExitHotkey,
+                exitModifiers,
+                (uint)exitKey);
+
+        if (!toggleRegistered || !exitRegistered)
+        {
+            string message = "Could not register: ";
+
+            if (!toggleRegistered)
+                message += "show/hide shortcut. ";
+
+            if (!exitRegistered)
+                message += "exit shortcut. ";
+
+            message +=
+                "\nAnother app may be using that shortcut. " +
+                "Choose a different combination in Settings.";
+
+            MessageBox.Show(
+                message,
+                "QuickSearch hotkeys",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+        }
     }
 
     private void UnregisterHotkeys()
@@ -188,6 +318,19 @@ public partial class Form1 : Form
             UnregisterHotKey(Handle, ExitHotkey);
             exitRegistered = false;
         }
+    }
+
+    private void HandleFormClosing(
+        object? sender, FormClosingEventArgs e)
+    {
+        if (!allowExit && e.CloseReason == CloseReason.UserClosing)
+        {
+            e.Cancel = true;
+            Hide();
+            return;
+        }
+
+        UnregisterHotkeys();
     }
 
     private void ExitApplication()
@@ -265,15 +408,23 @@ public partial class Form1 : Form
             return;
         }
 
+        string baseUrl = QuickSearchSettings.SearchEngine switch
+        {
+            "Bing" => "https://www.bing.com/search?q=",
+            "DuckDuckGo" => "https://duckduckgo.com/?q=",
+            _ => "https://www.google.com/search?q="
+        };
+
+        string url = baseUrl + Uri.EscapeDataString(query);
+
         ShowResults();
-
-        string url =
-            "https://www.google.com/search?q=" +
-            Uri.EscapeDataString(query);
-
         webView.CoreWebView2.Navigate(url);
 
-        await Task.CompletedTask;
+        if (QuickSearchSettings.HideAfterSearch)
+        {
+            await Task.Delay(150);
+            Hide();
+        }
     }
 
     private void ShowResults()
@@ -284,13 +435,21 @@ public partial class Form1 : Form
 
         ShowInTaskbar = true;
         WindowState = FormWindowState.Normal;
-        ClientSize = new Size(900, 680);
+
+        ClientSize = new Size(
+            QuickSearchSettings.WindowWidth,
+            QuickSearchSettings.WindowHeight);
+
+        if (QuickSearchSettings.CenterOnShow)
+            StartPosition = FormStartPosition.CenterScreen;
 
         Show();
         Activate();
-        searchBox.Focus();
-        searchBox.SelectAll();
 
+        if (QuickSearchSettings.SelectSearchText)
+            searchBox.SelectAll();
+
+        searchBox.Focus();
         UpdateNavigationButtons();
     }
 
@@ -300,7 +459,9 @@ public partial class Form1 : Form
         taglineLabel.Visible = true;
         webView.Visible = false;
 
-        ClientSize = new Size(900, 114);
+        ClientSize = new Size(
+            QuickSearchSettings.WindowWidth,
+            CompactHeight);
 
         searchBox.Focus();
         UpdateNavigationButtons();
@@ -379,10 +540,17 @@ public partial class Form1 : Form
                     else
                     {
                         ShowInTaskbar = true;
-                        Show();
                         WindowState = FormWindowState.Normal;
+
+                        if (QuickSearchSettings.CenterOnShow)
+                            StartPosition = FormStartPosition.CenterScreen;
+
+                        Show();
                         Activate();
                         searchBox.Focus();
+
+                        if (QuickSearchSettings.SelectSearchText)
+                            searchBox.SelectAll();
                     }
                     break;
 

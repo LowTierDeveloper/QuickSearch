@@ -1,16 +1,25 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
-<ItemGroup>
-  <Content Include="QuickSearch.png"
-           CopyToOutputDirectory="PreserveNewest" />
-</ItemGroup>
+﻿
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
-   
-</PropertyGroup>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+    <PublishSingleFile>false</PublishSingleFile>
+    <Version>1.0.1-alpha</Version>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="QuickSearch.png"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+    <EmbeddedResource Include="LICENSE"
+                      LogicalName="QuickSearch.LICENSE" />
+  </ItemGroup>
 </Project>

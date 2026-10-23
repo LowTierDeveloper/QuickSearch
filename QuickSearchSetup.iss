@@ -1,10 +1,12 @@
 #define MyAppName "QuickSearch"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.0.1-alpha"
 #define MyAppPublisher "QuickSearch"
 #define MyAppExeName "QuickSearch.exe"
 #define PublishDir "C:\Users\ASUS\source\QuickSearch\QuickSearch\bin\Release\net10.0-windows\win-x64\publish"
 
 [Setup]
+Compression=lzma2
+SolidCompression=yes
 AppId={{A81E61B7-2D42-4C38-9A51-6B9C43A11D72}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
