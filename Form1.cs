@@ -1,3 +1,4 @@
+
 #nullable enable
 
 using System;
@@ -46,19 +47,27 @@ public partial class Form1 : Form
 
     private readonly bool startInBackground;
 
+    private readonly System.Windows.Forms.Timer instanceSignalTimer = new()
+    {
+        Interval = 250
+    };
+
     private bool browserReady;
     private bool resultsVisible;
     private bool toggleRegistered;
     private bool exitRegistered;
     private bool allowExit;
     private bool settingsDialogOpen;
+    private bool browserInitializationStarted;
+
     private SettingsForm? settingsForm;
 
     public Form1()
     {
         startInBackground = Environment.GetCommandLineArgs()
             .Any(arg => string.Equals(
-                arg, "--background",
+                arg,
+                "--background",
                 StringComparison.OrdinalIgnoreCase));
 
         Text = "QuickSearch";
@@ -127,7 +136,11 @@ public partial class Form1 : Form
             if (startInBackground)
                 Hide();
 
-            await InitializeBrowserAsync();
+            if (!browserInitializationStarted)
+            {
+                browserInitializationStarted = true;
+                await InitializeBrowserAsync();
+            }
 
             if (!startInBackground)
                 searchBox.Focus();
@@ -149,7 +162,51 @@ public partial class Form1 : Form
             e.SuppressKeyPress = true;
         };
 
+        instanceSignalTimer.Tick += (_, _) =>
+        {
+            if (Program.ShowExistingInstanceEvent?.WaitOne(0) == true)
+                RestoreQuickSearch();
+        };
+
+        instanceSignalTimer.Start();
+
         ApplyAppearance();
+    }
+
+    private void RestoreQuickSearch()
+    {
+        if (IsDisposed || allowExit)
+            return;
+
+        // If Settings is open, bring Settings forward first.
+        if (settingsDialogOpen &&
+            settingsForm != null &&
+            !settingsForm.IsDisposed)
+        {
+            if (settingsForm.WindowState == FormWindowState.Minimized)
+                settingsForm.WindowState = FormWindowState.Normal;
+
+            settingsForm.Activate();
+            settingsForm.BringToFront();
+            return;
+        }
+
+        ShowInTaskbar = true;
+
+        if (WindowState == FormWindowState.Minimized)
+            WindowState = FormWindowState.Normal;
+
+        Show();
+
+        TopMost = QuickSearchSettings.AlwaysOnTop;
+
+        BringToFront();
+        Activate();
+
+        if (QuickSearchSettings.SelectSearchText)
+            searchBox.SelectAll();
+
+        searchBox.Focus();
     }
 
     private void OpenSettings()
@@ -157,18 +214,23 @@ public partial class Form1 : Form
         if (settingsForm != null && !settingsForm.IsDisposed)
         {
             settingsForm.Activate();
+            settingsForm.BringToFront();
             return;
         }
 
-        bool keepSettingsOnTop = TopMost;
         settingsDialogOpen = true;
+
+        bool keepMainOnTop = QuickSearchSettings.AlwaysOnTop;
+
+        // Temporarily remove the main window from the topmost layer.
         TopMost = false;
 
         var dialog = new SettingsForm
         {
             StartPosition = FormStartPosition.CenterParent,
-            TopMost = keepSettingsOnTop
+            TopMost = keepMainOnTop
         };
+
         settingsForm = dialog;
 
         dialog.SettingsChanged += (_, _) =>
@@ -177,7 +239,12 @@ public partial class Form1 : Form
             RegisterGlobalHotkeys();
         };
 
-        dialog.FormClosed += (_, _) => settingsForm = null;
+        dialog.FormClosed += (_, _) =>
+        {
+            settingsForm = null;
+            settingsDialogOpen = false;
+            TopMost = QuickSearchSettings.AlwaysOnTop;
+        };
 
         try
         {
@@ -185,17 +252,22 @@ public partial class Form1 : Form
         }
         finally
         {
+            settingsForm = null;
             settingsDialogOpen = false;
-            TopMost = QuickSearchSettings.AlwaysOnTop;
-            if (ReferenceEquals(settingsForm, dialog))
-                settingsForm = null;
+
+            if (!IsDisposed)
+            {
+                TopMost = QuickSearchSettings.AlwaysOnTop;
+                BringToFront();
+            }
         }
     }
 
     private void ApplyAppearance()
     {
         TopMost =
-            !settingsDialogOpen && QuickSearchSettings.AlwaysOnTop;
+            !settingsDialogOpen &&
+            QuickSearchSettings.AlwaysOnTop;
 
         QuickSearchUI.ApplyTheme(
             this,
@@ -230,12 +302,15 @@ public partial class Form1 : Form
                 case "Control":
                     result |= ModControl;
                     break;
+
                 case "Alt":
                     result |= ModAlt;
                     break;
+
                 case "Shift":
                     result |= ModShift;
                     break;
+
                 case "Win":
                     result |= ModWin;
                     break;
@@ -261,11 +336,15 @@ public partial class Form1 : Form
 
         uint toggleModifiers =
             GetModifiers(QuickSearchSettings.ToggleModifiers);
-        Keys toggleKey = GetKey(QuickSearchSettings.ToggleKey);
+
+        Keys toggleKey =
+            GetKey(QuickSearchSettings.ToggleKey);
 
         uint exitModifiers =
             GetModifiers(QuickSearchSettings.ExitModifiers);
-        Keys exitKey = GetKey(QuickSearchSettings.ExitKey);
+
+        Keys exitKey =
+            GetKey(QuickSearchSettings.ExitKey);
 
         toggleRegistered =
             toggleKey != Keys.None &&
@@ -321,7 +400,8 @@ public partial class Form1 : Form
     }
 
     private void HandleFormClosing(
-        object? sender, FormClosingEventArgs e)
+        object? sender,
+        FormClosingEventArgs e)
     {
         if (!allowExit && e.CloseReason == CloseReason.UserClosing)
         {
@@ -330,13 +410,22 @@ public partial class Form1 : Form
             return;
         }
 
+        instanceSignalTimer.Stop();
+        instanceSignalTimer.Dispose();
+
         UnregisterHotkeys();
     }
 
     private void ExitApplication()
     {
+        if (allowExit)
+            return;
+
         allowExit = true;
+
+        instanceSignalTimer.Stop();
         UnregisterHotkeys();
+
         Close();
     }
 
@@ -349,7 +438,8 @@ public partial class Form1 : Form
             string profile = Path.Combine(
                 Environment.GetFolderPath(
                     Environment.SpecialFolder.LocalApplicationData),
-                "QuickSearch", "WebView2");
+                "QuickSearch",
+                "WebView2");
 
             Directory.CreateDirectory(profile);
 
@@ -378,6 +468,7 @@ public partial class Form1 : Form
 
             browserReady = true;
             statusLabel.Text = "Ready";
+
             UpdateNavigationButtons();
         }
         catch (Exception ex)
@@ -423,7 +514,9 @@ public partial class Form1 : Form
         if (QuickSearchSettings.HideAfterSearch)
         {
             await Task.Delay(150);
-            Hide();
+
+            if (!IsDisposed)
+                Hide();
         }
     }
 
@@ -444,6 +537,9 @@ public partial class Form1 : Form
             StartPosition = FormStartPosition.CenterScreen;
 
         Show();
+        TopMost = QuickSearchSettings.AlwaysOnTop;
+
+        BringToFront();
         Activate();
 
         if (QuickSearchSettings.SelectSearchText)
@@ -539,19 +635,9 @@ public partial class Form1 : Form
                     }
                     else
                     {
-                        ShowInTaskbar = true;
-                        WindowState = FormWindowState.Normal;
-
-                        if (QuickSearchSettings.CenterOnShow)
-                            StartPosition = FormStartPosition.CenterScreen;
-
-                        Show();
-                        Activate();
-                        searchBox.Focus();
-
-                        if (QuickSearchSettings.SelectSearchText)
-                            searchBox.SelectAll();
+                        RestoreQuickSearch();
                     }
+
                     break;
 
                 case ExitHotkey:

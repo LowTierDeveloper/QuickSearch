@@ -1,3 +1,4 @@
+
 #nullable enable
 
 using System;
@@ -30,7 +31,8 @@ internal static class QuickSearchSettings
     private static readonly string FilePath = Path.Combine(
         Environment.GetFolderPath(
             Environment.SpecialFolder.LocalApplicationData),
-        "QuickSearch", "settings.json");
+        "QuickSearch",
+        "settings.json");
 
     private static Data data = LoadData();
 
@@ -128,13 +130,17 @@ internal static class QuickSearchSettings
     {
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
+            Directory.CreateDirectory(
+                Path.GetDirectoryName(FilePath)!);
 
             File.WriteAllText(
                 FilePath,
                 JsonSerializer.Serialize(
                     data,
-                    new JsonSerializerOptions { WriteIndented = true }));
+                    new JsonSerializerOptions
+                    {
+                        WriteIndented = true
+                    }));
         }
         catch (Exception ex)
         {
@@ -151,8 +157,10 @@ internal static class QuickSearchSettings
         try
         {
             if (File.Exists(FilePath))
+            {
                 return JsonSerializer.Deserialize<Data>(
                     File.ReadAllText(FilePath)) ?? new Data();
+            }
         }
         catch
         {
@@ -181,6 +189,7 @@ internal sealed class SettingsForm : Form
 
     private readonly NumericUpDown width = new();
     private readonly NumericUpDown height = new();
+
     private readonly Button accentButton = new();
     private readonly Button saveButton = new();
 
@@ -215,22 +224,34 @@ internal sealed class SettingsForm : Form
             Margin = new Padding(0)
         };
 
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 48));
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 52));
+        layout.ColumnStyles.Add(
+            new ColumnStyle(SizeType.Percent, 48));
+
+        layout.ColumnStyles.Add(
+            new ColumnStyle(SizeType.Percent, 52));
 
         void Section(string text)
         {
             int row = layout.RowCount++;
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+
+            layout.RowStyles.Add(
+                new RowStyle(SizeType.Absolute, 34));
+
             layout.Controls.Add(new Label
             {
                 Text = text,
                 AutoSize = true,
-                Font = new Font("Segoe UI", 11, FontStyle.Bold),
+                Font = new Font(
+                    "Segoe UI",
+                    11,
+                    FontStyle.Bold),
                 Anchor = AnchorStyles.Left,
                 Margin = new Padding(0, 8, 0, 2)
             }, 0, row);
-            layout.SetColumnSpan(layout.GetControlFromPosition(0, row)!, 2);
+
+            layout.SetColumnSpan(
+                layout.GetControlFromPosition(0, row)!,
+                2);
         }
 
         void AddCheck(CheckBox check, string text)
@@ -238,8 +259,12 @@ internal sealed class SettingsForm : Form
             check.Text = text;
             check.AutoSize = true;
             check.Anchor = AnchorStyles.Left;
+
             int row = layout.RowCount++;
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
+
+            layout.RowStyles.Add(
+                new RowStyle(SizeType.Absolute, 32));
+
             layout.Controls.Add(check, 0, row);
             layout.SetColumnSpan(check, 2);
         }
@@ -247,7 +272,9 @@ internal sealed class SettingsForm : Form
         void AddPair(string label, Control control)
         {
             int row = layout.RowCount++;
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
+
+            layout.RowStyles.Add(
+                new RowStyle(SizeType.Absolute, 38));
 
             layout.Controls.Add(new Label
             {
@@ -259,14 +286,18 @@ internal sealed class SettingsForm : Form
 
             control.Dock = DockStyle.Fill;
             control.Margin = new Padding(4, 3, 0, 3);
+
             layout.Controls.Add(control, 1, row);
         }
 
+        // Appearance
         Section("Appearance");
+
         AddCheck(dark, "Dark mode");
         AddPair("Accent color", accentButton);
 
         accentButton.Text = "Choose color...";
+
         accentButton.Click += (_, _) =>
         {
             using var dialog = new ColorDialog
@@ -279,26 +310,49 @@ internal sealed class SettingsForm : Form
             {
                 QuickSearchSettings.AccentColor =
                     ColorTranslator.ToHtml(dialog.Color);
+
                 accentButton.BackColor = dialog.Color;
+
                 accentButton.ForeColor =
                     dialog.Color.GetBrightness() < 0.5
-                        ? Color.White : Color.Black;
+                        ? Color.White
+                        : Color.Black;
             }
         };
 
+        // Search
         Section("Search");
+
         engine.DropDownStyle = ComboBoxStyle.DropDownList;
+
         engine.Items.AddRange(new object[]
         {
-            "Google", "Bing", "DuckDuckGo"
+            "Google",
+            "Bing",
+            "DuckDuckGo"
         });
-        AddPair("Search engine", engine);
-        AddCheck(selectText, "Select the search text when the window opens");
 
+        AddPair("Search engine", engine);
+
+        AddCheck(
+            selectText,
+            "Select the search text when the window opens");
+
+        // Window behavior
         Section("Window behavior");
-        AddCheck(top, "Keep QuickSearch on top of other windows");
-        AddCheck(center, "Center the window when it opens");
-        AddCheck(hideAfter, "Hide QuickSearch after submitting a search");
+
+        AddCheck(
+            top,
+            "Keep QuickSearch on top of other windows");
+
+        AddCheck(
+            center,
+            "Center the window when it opens");
+
+        AddCheck(
+            hideAfter,
+            "Hide QuickSearch after submitting a search");
+
         AddPair("Window width", width);
         AddPair("Window height", height);
 
@@ -310,35 +364,41 @@ internal sealed class SettingsForm : Form
         height.Maximum = 1200;
         height.Increment = 50;
 
+        // Global hotkeys
         Section("Global hotkeys");
 
-        ConfigureCombo(toggleModifiers,
+        ConfigureCombo(
+            toggleModifiers,
             "None", "Control", "Alt", "Control, Alt",
             "Shift", "Control, Shift", "Alt, Shift",
             "Control, Alt, Shift");
 
-        ConfigureCombo(exitModifiers,
+        ConfigureCombo(
+            exitModifiers,
             "None", "Control", "Alt", "Control, Alt",
             "Shift", "Control, Shift", "Alt, Shift",
             "Control, Alt, Shift");
 
-        ConfigureCombo(toggleKey,
+        ConfigureCombo(
+            toggleKey,
             "Space", "Q", "W", "E", "R", "F", "G",
             "J", "K", "L", "P", "F1", "F2", "F3",
-            "F4", "F5", "F6", "F7", "F8", "F9", "F10",
-            "F11", "F12");
+            "F4", "F5", "F6", "F7", "F8", "F9",
+            "F10", "F11", "F12");
 
-        ConfigureCombo(exitKey,
+        ConfigureCombo(
+            exitKey,
             "Space", "Q", "W", "E", "R", "F", "G",
             "J", "K", "L", "P", "F1", "F2", "F3",
-            "F4", "F5", "F6", "F7", "F8", "F9", "F10",
-            "F11", "F12");
+            "F4", "F5", "F6", "F7", "F8", "F9",
+            "F10", "F11", "F12");
 
         AddPair("Show / hide modifiers", toggleModifiers);
         AddPair("Show / hide key", toggleKey);
         AddPair("Exit modifiers", exitModifiers);
         AddPair("Exit key", exitKey);
 
+        // About
         Section("About");
 
         var aboutButton = new Button
@@ -347,10 +407,12 @@ internal sealed class SettingsForm : Form
             Dock = DockStyle.Fill,
             Margin = new Padding(0, 3, 4, 3)
         };
-        aboutButton.Click += (_, _) => ShowInformationDialog(
-            "About QuickSearch",
-            $"QuickSearch\nVersion v{Application.ProductVersion}\n\n" +
-            "A fast shortcut for searching the web.");
+
+        aboutButton.Click += (_, _) =>
+            ShowInformationDialog(
+                "About QuickSearch",
+                $"QuickSearch\nVersion v{Application.ProductVersion}\n\n" +
+                "A fast shortcut for searching the web.");
 
         var licenseButton = new Button
         {
@@ -358,15 +420,21 @@ internal sealed class SettingsForm : Form
             Dock = DockStyle.Fill,
             Margin = new Padding(4, 3, 0, 3)
         };
-        licenseButton.Click += (_, _) => ShowInformationDialog(
-            "QuickSearch License",
-            ReadLicenseText());
+
+        licenseButton.Click += (_, _) =>
+            ShowInformationDialog(
+                "QuickSearch License",
+                ReadLicenseText());
 
         int informationRow = layout.RowCount++;
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
+
+        layout.RowStyles.Add(
+            new RowStyle(SizeType.Absolute, 40));
+
         layout.Controls.Add(aboutButton, 0, informationRow);
         layout.Controls.Add(licenseButton, 1, informationRow);
 
+        // Save button
         saveButton.Text = "Save settings";
         saveButton.Height = 38;
         saveButton.Dock = DockStyle.Bottom;
@@ -386,32 +454,45 @@ internal sealed class SettingsForm : Form
                     "QuickSearch",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Warning);
+
                 return;
             }
 
             QuickSearchSettings.DarkMode = dark.Checked;
+
             QuickSearchSettings.SearchEngine =
                 engine.SelectedItem?.ToString() ?? "Google";
+
             QuickSearchSettings.AlwaysOnTop = top.Checked;
             QuickSearchSettings.CenterOnShow = center.Checked;
             QuickSearchSettings.HideAfterSearch = hideAfter.Checked;
             QuickSearchSettings.SelectSearchText = selectText.Checked;
+
             QuickSearchSettings.WindowWidth = (int)width.Value;
             QuickSearchSettings.WindowHeight = (int)height.Value;
+
             QuickSearchSettings.ToggleModifiers =
                 toggleModifiers.SelectedItem?.ToString() ?? "Control, Alt";
+
             QuickSearchSettings.ToggleKey =
                 toggleKey.SelectedItem?.ToString() ?? "Space";
+
             QuickSearchSettings.ExitModifiers =
                 exitModifiers.SelectedItem?.ToString() ?? "Control, Alt";
+
             QuickSearchSettings.ExitKey =
                 exitKey.SelectedItem?.ToString() ?? "Q";
 
             QuickSearchSettings.Save();
-            SettingsChanged?.Invoke(this, EventArgs.Empty);
+
+            SettingsChanged?.Invoke(
+                this,
+                EventArgs.Empty);
+
             Close();
         };
 
+        // Load saved values
         dark.Checked = QuickSearchSettings.DarkMode;
         top.Checked = QuickSearchSettings.AlwaysOnTop;
         center.Checked = QuickSearchSettings.CenterOnShow;
@@ -419,19 +500,34 @@ internal sealed class SettingsForm : Form
         selectText.Checked = QuickSearchSettings.SelectSearchText;
 
         engine.SelectedItem = QuickSearchSettings.SearchEngine;
-        if (engine.SelectedIndex < 0) engine.SelectedIndex = 0;
+
+        if (engine.SelectedIndex < 0)
+            engine.SelectedIndex = 0;
 
         width.Value = QuickSearchSettings.WindowWidth;
         height.Value = QuickSearchSettings.WindowHeight;
 
-        SelectValue(toggleModifiers, QuickSearchSettings.ToggleModifiers);
-        SelectValue(toggleKey, QuickSearchSettings.ToggleKey);
-        SelectValue(exitModifiers, QuickSearchSettings.ExitModifiers);
-        SelectValue(exitKey, QuickSearchSettings.ExitKey);
+        SelectValue(
+            toggleModifiers,
+            QuickSearchSettings.ToggleModifiers);
 
-        accentButton.BackColor = QuickSearchSettings.GetAccent();
+        SelectValue(
+            toggleKey,
+            QuickSearchSettings.ToggleKey);
+
+        SelectValue(
+            exitModifiers,
+            QuickSearchSettings.ExitModifiers);
+
+        SelectValue(
+            exitKey,
+            QuickSearchSettings.ExitKey);
+
+        accentButton.BackColor =
+            QuickSearchSettings.GetAccent();
 
         content.Controls.Add(layout);
+
         Controls.Add(content);
         Controls.Add(saveButton);
 
@@ -439,15 +535,19 @@ internal sealed class SettingsForm : Form
     }
 
     private static void ConfigureCombo(
-        ComboBox combo, params string[] values)
+        ComboBox combo,
+        params string[] values)
     {
         combo.DropDownStyle = ComboBoxStyle.DropDownList;
         combo.Items.AddRange(values);
     }
 
-    private static void SelectValue(ComboBox combo, string value)
+    private static void SelectValue(
+        ComboBox combo,
+        string value)
     {
         combo.SelectedItem = value;
+
         if (combo.SelectedIndex < 0)
             combo.SelectedIndex = 0;
     }
@@ -455,54 +555,88 @@ internal sealed class SettingsForm : Form
     private void ApplyTheme()
     {
         bool isDark = QuickSearchSettings.DarkMode;
+
         Color background = isDark
-            ? Color.FromArgb(30, 32, 36) : Color.White;
+            ? Color.FromArgb(30, 32, 36)
+            : Color.White;
+
         Color foreground = isDark
-            ? Color.White : Color.FromArgb(35, 43, 56);
+            ? Color.White
+            : Color.FromArgb(35, 43, 56);
 
         BackColor = background;
         ForeColor = foreground;
 
         foreach (Control control in Controls)
-            ApplyThemeRecursive(control, background, foreground);
+        {
+            ApplyThemeRecursive(
+                control,
+                background,
+                foreground);
+        }
 
-        accentButton.BackColor = QuickSearchSettings.GetAccent();
+        accentButton.BackColor =
+            QuickSearchSettings.GetAccent();
+
         accentButton.ForeColor =
             QuickSearchSettings.GetAccent().GetBrightness() < 0.5
-                ? Color.White : Color.Black;
-        saveButton.BackColor = QuickSearchSettings.GetAccent();
+                ? Color.White
+                : Color.Black;
+
+        saveButton.BackColor =
+            QuickSearchSettings.GetAccent();
+
         saveButton.ForeColor = Color.Black;
     }
 
     private static void ApplyThemeRecursive(
-        Control control, Color background, Color foreground)
+        Control control,
+        Color background,
+        Color foreground)
     {
         control.BackColor = background;
         control.ForeColor = foreground;
 
         foreach (Control child in control.Controls)
-            ApplyThemeRecursive(child, background, foreground);
+        {
+            ApplyThemeRecursive(
+                child,
+                background,
+                foreground);
+        }
     }
 
-    private void ShowInformationDialog(string title, string text)
+    private void ShowInformationDialog(
+        string title,
+        string text)
     {
         bool isDark = QuickSearchSettings.DarkMode;
+
         Color background = isDark
-            ? Color.FromArgb(30, 32, 36) : Color.White;
+            ? Color.FromArgb(30, 32, 36)
+            : Color.White;
+
         Color foreground = isDark
-            ? Color.White : Color.FromArgb(35, 43, 56);
+            ? Color.White
+            : Color.FromArgb(35, 43, 56);
 
         using var dialog = new Form
         {
             Text = title,
             StartPosition = FormStartPosition.CenterParent,
+
             ClientSize = title == "QuickSearch License"
                 ? new Size(640, 520)
                 : new Size(420, 190),
+
             FormBorderStyle = FormBorderStyle.FixedDialog,
             MaximizeBox = false,
             MinimizeBox = false,
             ShowInTaskbar = false,
+
+            // Keep the information window above Settings.
+            TopMost = this.TopMost,
+
             BackColor = background,
             ForeColor = foreground,
             Font = Font
@@ -532,11 +666,15 @@ internal sealed class SettingsForm : Form
             ForeColor = Color.White,
             FlatStyle = FlatStyle.Flat
         };
+
         closeButton.Click += (_, _) => dialog.Close();
 
         dialog.Controls.Add(message);
         dialog.Controls.Add(closeButton);
+
         dialog.AcceptButton = closeButton;
+
+        // The dialog is owned by Settings, not by the main window.
         dialog.ShowDialog(this);
     }
 
@@ -546,10 +684,13 @@ internal sealed class SettingsForm : Form
             .GetManifestResourceStream("QuickSearch.LICENSE");
 
         if (stream == null)
+        {
             throw new InvalidOperationException(
                 "The embedded LICENSE resource could not be found.");
+        }
 
         using var reader = new StreamReader(stream);
+
         return reader.ReadToEnd();
     }
 }
